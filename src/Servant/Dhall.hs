@@ -18,8 +18,8 @@
 module Servant.Dhall (
     DHALL,
     DHALL',
-    HasInterpretOptions,
-    DefaultInterpretOptions,
+    HasInputNormalizer,
+    DefaultInputNormalizer,
     ) where
 
 import           Prelude ()
@@ -48,7 +48,7 @@ import           Data.Typeable
                  (Typeable)
 import           Dhall
                  (ToDhall (..), Encoder (..), FromDhall (..),
-                 InterpretOptions, Decoder (..), defaultInterpretOptions)
+                 InputNormalizer, Decoder (..), defaultInputNormalizer)
 import qualified Dhall.Core
 import           Dhall.Parser
                  (exprFromText, unwrap)
@@ -58,7 +58,7 @@ import           Servant.API
                  (Accept (..), MimeRender (..), MimeUnrender (..))
 import qualified Text.Megaparsec                         as MP
 
-type DHALL = DHALL' DefaultInterpretOptions
+type DHALL = DHALL' DefaultInputNormalizer
 data DHALL' opt deriving (Typeable)
 
 instance Accept (DHALL' opts) where
@@ -68,7 +68,7 @@ instance Accept (DHALL' opts) where
 -- Encoding
 -------------------------------------------------------------------------------
 
-instance (ToDhall a, HasInterpretOptions opts) => MimeRender (DHALL' opts) a where
+instance (ToDhall a, HasInputNormalizer opts) => MimeRender (DHALL' opts) a where
     mimeRender _ x
         = TLE.encodeUtf8
         $ renderLazy
@@ -78,13 +78,13 @@ instance (ToDhall a, HasInterpretOptions opts) => MimeRender (DHALL' opts) a whe
         $ embed ty x
       where
         ty :: Encoder a
-        ty = injectWith (interpretOptions (Proxy :: Proxy opts))
+        ty = injectWith (inputNormalizer (Proxy :: Proxy opts))
 
 -------------------------------------------------------------------------------
 -- Decoding
 -------------------------------------------------------------------------------
 
-instance (FromDhall a, HasInterpretOptions opts) => MimeUnrender (DHALL' opts) a where
+instance (FromDhall a, HasInputNormalizer opts) => MimeUnrender (DHALL' opts) a where
     mimeUnrender _ lbs = do
         expr0  <- firstEither showParseError $ exprFromText "(input)" te
         expr1  <- for expr0 $ \i -> Left $ "Import found: " ++ ppExpr i
@@ -103,7 +103,7 @@ instance (FromDhall a, HasInterpretOptions opts) => MimeUnrender (DHALL' opts) a
             TLE.decodeUtf8With lenientDecode lbs
 
         ty :: Decoder  a
-        ty = autoWith (interpretOptions (Proxy :: Proxy opts))
+        ty = autoWith (inputNormalizer (Proxy :: Proxy opts))
 
         ppExpr :: Pretty pp => pp -> String
         ppExpr = renderString . layoutPretty defaultLayoutOptions .  pretty
@@ -116,11 +116,11 @@ firstEither _ (Right c) = Right c
 -- Options
 -------------------------------------------------------------------------------
 
-class HasInterpretOptions opts where
-    interpretOptions :: Proxy opts -> InterpretOptions
+class HasInputNormalizer opts where
+    inputNormalizer :: Proxy opts -> InputNormalizer
 
--- | 'defaultInterpretOptions'
-data DefaultInterpretOptions deriving (Typeable)
+-- | 'defaultInputNormalizer'
+data DefaultInputNormalizer deriving (Typeable)
 
-instance HasInterpretOptions DefaultInterpretOptions where
-    interpretOptions _ = defaultInterpretOptions
+instance HasInputNormalizer DefaultInputNormalizer where
+    inputNormalizer _ = defaultInputNormalizer
